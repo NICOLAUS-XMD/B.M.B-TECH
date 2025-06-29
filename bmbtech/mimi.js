@@ -1,83 +1,63 @@
-const {
-  zokou
-} = require("../framework/zokou");
-const axios = require("axios");
-const Genius = require("genius-lyrics");
-const Client = new Genius.Client("jKTbbU-6X2B9yWWl-KOm7Mh3_Z6hQsgE4mmvwV3P3Qe7oNa9-hsrLxQV5l5FiAZO");
+const { zokou } = require('../framework/zokou');
+const traduire = require("../framework/traduction");
+const { default: axios } = require('axios');
+const fs = require('fs');
+const pkg = require('@whiskeysockets/baileys');
+const { generateWAMessageFromContent, proto } = pkg;
 
-// Define the command with aliases
-zokou({
-  nomCom: "lyrics7",
-  aliases: ["mistari", "lyric"],
-  reaction: '✍️',
-  categorie: "search"
-}, async (dest, zk, params) => {
-  const { repondre: sendResponse, arg: commandArgs, ms } = params;
-  const text = commandArgs.join(" ").trim();
-
-  if (!text) {
-    return sendResponse("Please provide a song name.");
-  }
-
-  // Function to get lyrics data from APIs
-  const getLyricsData = async (url) => {
-    try {
-      const response = await axios.get(url);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching data from API:', error);
-      return null;
-    }
-  };
-
-  // List of APIs to try
-  const apis = [
-    `https://api.dreaded.site/api/lyrics?title=${encodeURIComponent(text)}`,
-    `https://some-random-api.com/others/lyrics?title=${encodeURIComponent(text)}`,
-    `https://api.davidcyriltech.my.id/lyrics?title=${encodeURIComponent(text)}`
-  ];
-
-  let lyricsData;
-  for (const api of apis) {
-    lyricsData = await getLyricsData(api);
-    if (lyricsData && lyricsData.result && lyricsData.result.lyrics) break;
-  }
-
-  // Check if lyrics data was found
-  if (!lyricsData || !lyricsData.result || !lyricsData.result.lyrics) {
-    return sendResponse(`Failed to retrieve lyrics. Please try again.`);
-  }
-
-  const { title, artist, thumb, lyrics } = lyricsData.result;
-  const imageUrl = thumb || "https://files.catbox.moe/hflcbc.jpg";
-
-  const caption = `
-╭──────────━⊷
-║ *Bot Name:* B.M.B TECH
-║ *Title:* ${title}
-║ *Artist:* ${artist}
-╰──────────━⊷\n\n
-${lyrics}`;
+zokou({ nomCom: "gpte", reaction: "🤦", categorie: "bmbai" }, async (dest, zk, commandeOptions) => {
+  const { repondre, arg, ms } = commandeOptions;
 
   try {
-    // Fetch the image
-    const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+    if (!arg || arg.length === 0) {
+      return repondre('Hello 🖐️.\n\nWhat help can I offer you today?');
+    }
 
-    // Send the message with the image and lyrics
-    await zk.sendMessage(
-      dest,
-      {
-        image: imageBuffer,
-        caption: caption
-      },
-      { quoted: ms }
-    );
+    const prompt = arg.join(' ');
+    const apiKey = 'gifted_api_s9hs4dyf5';
+    const apiUrl = `https://api.giftedtech.web.id/api/ai/gpt?apikey=${apiKey}&q=${encodeURIComponent(prompt)}`;
 
+    const response = await axios.get(apiUrl);
+    const data = response.data;
+
+    if (data && data.result) {
+      const answer = data.result;
+
+      const msg = generateWAMessageFromContent(dest, {
+        viewOnceMessage: {
+          message: {
+            messageContextInfo: {
+              deviceListMetadata: {},
+              deviceListMetadataVersion: 2
+            },
+            interactiveMessage: proto.Message.InteractiveMessage.create({
+              body: proto.Message.InteractiveMessage.Body.create({
+                text: answer
+              }),
+              footer: proto.Message.InteractiveMessage.Footer.create({
+                text: "> *B.M.B-TECH🇹🇿*"
+              }),
+              header: proto.Message.InteractiveMessage.Header.create({
+                title: "",
+                subtitle: "",
+                hasMediaAttachment: false
+              }),
+              nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                buttons: []
+              })
+            })
+          }
+        }
+      }, {});
+
+      await zk.relayMessage(dest, msg.message, {
+        messageId: msg.key.id
+      });
+    } else {
+      throw new Error('Invalid response from the API.');
+    }
   } catch (error) {
-    console.error('Error fetching or sending image:', error);
-    // Fallback to sending just the text if image fetch fails
-    await sendResponse(caption);
+    console.error('Error getting response:', error.message);
+    repondre('Error getting response.');
   }
 });
-      
